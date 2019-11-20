@@ -11,13 +11,18 @@
             parent::__construct();
             $this->load->model('UserModel');
             $this->load->library('form_validation');
+            $this->load->helper(['jwt','authorization']);   
         }
 
         
-        public function index_get() {
-            return $this->returnData($this->db->get('users')->result(), false);
-        }
-
+        public function index_get(){      
+            $data = $this->verify_request();
+            $status = parent::HTTP_OK;
+            if($data['status'] == 401){
+                return $this->returnData($data['msg'],true);
+            }  
+            return $this->returnData($this->db->get('users')->result(), false);     
+        }     
 
         public function index_post($id = null) {
             $validation = $this->form_validation;
@@ -74,6 +79,44 @@
             $response['message'] = $msg;
 
             return $this->response($response);
+        }
+        private function verify_request()
+        {
+            // Get all the headers
+            $headers = $this->input->request_headers();
+            // Extract the token
+            if(isset($headers['Authorization'])){
+                $header =  $headers['Authorization'];
+            }else
+            {
+                $status = parent::HTTP_UNAUTHORIZED;
+                $response = ['status' => $status, 'msg' => 'Unauthorized Access!'];
+                return $response;
+            }
+            
+            $token = explode(" ", $header)[1];
+            // Use try-catch
+            // JWT library throws exception if the token is not valid
+            try {
+                // Validate the token
+                // Successfull validation will return the decoded user data else returns false
+                $data = AUTHORIZATION::validateToken($token);
+    
+                if ($data === false) {
+                    $status = parent::HTTP_UNAUTHORIZED;
+                    $response = ['status' => $status, 'msg' => 'Unauthorized Access!'];
+                } else {
+                    $response = ['status' => 200, 'msg' => $data];
+                }
+                return $response;
+            } catch (Exception $e) {
+                // Token is invalid
+                // Send the unathorized access message
+                $status = parent::HTTP_UNAUTHORIZED;
+                $response = ['status' => $status, 'msg' => 'Unauthorized Access! '];
+                //$this->response($response, $status);
+                return $response;
+            }
         }
     }
 
